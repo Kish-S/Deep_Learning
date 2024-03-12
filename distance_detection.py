@@ -2,23 +2,30 @@ import torch
 import cv2
 import numpy as np
 
-def calculate_overlap(box1, box2):
-    x1, y1, w1, h1, _, _ = box1
-    x2, y2, w2, h2, _, _ = box2
+def calculate_distance(bbox, focal_length, baseline, disparity_map):
+    # Extract bounding box coordinates
+    x_min, y_min, x_max, y_max, _, _ = bbox
 
-    x_overlap = max(0, min(x1 + w1, x2 + w2) - max(x1, x2))
-    y_overlap = max(0, min(y1 + h1, y2 + h2) - max(y1, y2))
+    # Calculate the center of the bounding box
+    x_center = int((x_min + x_max) / 2)
+    y_center = int((y_min + y_max) / 2)
 
-    intersection = x_overlap * y_overlap
-    area1 = w1 * h1
-    area2 = w2 * h2
+    # Extract the disparity value at the center of the bounding box
+    disparity = disparity_map[y_center, x_center]
 
-    iou = intersection / (area1 + area2 - intersection)
-    return iou
+    # Check if the disparity value is valid
+    if disparity == 0:
+        return None
+
+    # Calculate the distance using triangulation formula
+    distance = baseline * focal_length / disparity
+
+    return distance
 
 
-focal_length = 2063.400  # Focal length for camera 103 in pixels
-baseline = 0.5446076  # Baseline for camera 103 in meters
+focal_length = 2063  
+baseline = 0.5446
+
 # Model
 model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)
 
@@ -37,38 +44,22 @@ right_results = model([right_image_path])
 left_boxes = left_results.xyxy[0].cpu().numpy()
 right_boxes = right_results.xyxy[0].cpu().numpy()
 
-print(f"Left boxes: {left_boxes}")
-print(f"Right boxes: {right_boxes}")
-
 # Load the disparity image
 disparity_image = cv2.imread('./Images/disparity/2018-07-11-14-48-52_2018-07-11-15-09-59-868.png', cv2.IMREAD_GRAYSCALE)
 
-# Match bounding boxes (simple overlap-based matching for demonstration)
-matched_boxes = []
-for left_box in left_boxes:
-    for right_box in right_boxes:
-        overlap = calculate_overlap(left_box, right_box)
-        if overlap > 0.5:  # Adjust the threshold as needed
-            matched_boxes.append((left_box, right_box))
-            break
+# Draw bounding boxes, centers, and distances on left image
+for box in left_boxes:
+    x_min, y_min, x_max, y_max, _, _ = map(int, box)
+    cv2.rectangle(left_image, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+    x_center = int((x_min + x_max) / 2)
+    y_center = int((y_min + y_max) / 2)
+    cv2.circle(left_image, (x_center, y_center), 5, (255, 0, 0), -1)
+    
+    # Calculate distance
+    dist = calculate_distance(box, focal_length, baseline, disparity_image)
+    if dist is not None:
+        cv2.putText(left_image, f"{dist:.2f}m", (x_center - 50, y_center - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
 
-# Draw bounding boxes and annotations on the images
-for left_box, right_box in matched_boxes:
-    left_x, left_y, left_w, left_h, _, obj_type = map(int, left_box)
-    disparity_roi = disparity_image[left_y:left_y+left_h, left_x:left_x+left_w]
-
-    # Calculate average disparity within the bounding box
-    average_disparity = np.mean(disparity_roi)
-
-    # Calculate depth using stereo calibration parameters
-
-    depth = baseline * focal_length / (average_disparity + 1e-6)
-
-    # Draw bounding box and annotation on the left image
-    cv2.rectangle(left_image, (left_x, left_y), (left_x + left_w, left_y + left_h), (0, 255, 0), 2)
-    cv2.putText(left_image, f"{obj_type}: {depth:.2f} meters", (left_x, left_y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-# Display or save the modified left image
-cv2.imshow('Result Image', left_image)
+cv2.imshow('Left Image with Bounding Boxes, Centers, and Distances', left_image)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
