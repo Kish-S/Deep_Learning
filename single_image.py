@@ -1,7 +1,6 @@
 import torch
 import cv2
 import numpy as np
-import os
 
 def check_proximity_warning(distance, left_image):
     if distance is not None and distance < 6:
@@ -70,54 +69,43 @@ baseline = 0.5446
 # Model
 model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)
 
+# Load left and right images
+left_image_path = './Images/image_L/2018-10-11-16-03-19_2018-10-11-16-05-28-455.png'
+right_image_path = './Images/image_R/2018-10-11-16-03-19_2018-10-11-16-05-28-455.png'
 
+left_image = cv2.imread(left_image_path)
+right_image = cv2.imread(right_image_path)
 
-# Output folder
-output_folder = 'output'
-os.makedirs(output_folder, exist_ok=True)
+# YOLOv5 Inference on left and right images
+left_results = model([left_image_path])
+right_results = model([right_image_path])
 
-# Iterate over the left and right image pairs
-for i, (left_image_name, right_image_name) in enumerate(zip(os.listdir('./Images/image_L'), os.listdir('./Images/image_R'))):
-    # Construct paths for left and right images
-    left_image_path = os.path.join('./Images/image_L', left_image_name)
-    right_image_path = os.path.join('./Images/image_R', right_image_name)
+# Extract bounding boxes and other information
+left_boxes = left_results.xyxy[0].cpu().numpy()
+right_boxes = right_results.xyxy[0].cpu().numpy()
 
-    # Load left and right images
-    left_image = cv2.imread(left_image_path)
-    right_image = cv2.imread(right_image_path)
+disparity_map = calculate_disparity_map(left_image, right_image)
+# Draw bounding boxes, centers, and distances on left image
+for box in left_boxes:
+    x_min, y_min, x_max, y_max, _, category = map(int, box)
+    probability = box[4]
+    if (category == 2 or category == 5 or category == 7) and probability >= 0.5:
 
-    # YOLOv5 Inference on left and right images
-    left_results = model([left_image_path])
-    right_results = model([right_image_path])
+        cv2.rectangle(left_image, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+        x_center = int((x_min + x_max) / 2)
+        y_center = int((y_min + y_max) / 2)
+        cv2.circle(left_image, (x_center, y_center), 5, (255, 0, 0), -1)
 
-    # Extract bounding boxes and other information
-    left_boxes = left_results.xyxy[0].cpu().numpy()
-    right_boxes = right_results.xyxy[0].cpu().numpy()
+        # Calculate distance
+        dist = calculate_distance(box, focal_length, baseline, disparity_map, left_boxes)
+        if dist is not None:
+            cv2.putText(left_image, f"{dist:.2f}m", (x_center - 50, y_center - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1, cv2.LINE_AA)
+        # After calculating distance, add this line to check proximity and display warning if necessary
+        check_proximity_warning(dist,left_image)
 
-    disparity_map = calculate_disparity_map(left_image, right_image)
-
-    # Draw bounding boxes, centers, and distances on left image
-    for box in left_boxes:
-        x_min, y_min, x_max, y_max, _, category = map(int, box)
-        probability = box[4]
-        if (category == 2 or category == 5 or category == 7) and probability >= 0.6:
-
-            cv2.rectangle(left_image, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
-            x_center = int((x_min + x_max) / 2)
-            y_center = int((y_min + y_max) / 2)
-            cv2.circle(left_image, (x_center, y_center), 5, (255, 0, 0), -1)
-
-            # Calculate distance
-            dist = calculate_distance(box, focal_length, baseline, disparity_map, left_boxes)
-            if dist is not None:
-                cv2.putText(left_image, f"{dist:.2f}m", (x_center - 50, y_center - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1, cv2.LINE_AA)
-            # After calculating distance, add this line to check proximity and display warning if necessary
-            check_proximity_warning(dist, left_image)
-
-    # Save the annotated image to the output folder
-    output_image_path = os.path.join(output_folder, f'result_{i}.png')
-    cv2.imwrite(output_image_path, left_image)
-
-    print(f"Processed image pair {i+1}/{len(os.listdir('./Images/image_L'))}: {left_image_name} and {right_image_name}")
-
-print("All images processed successfully.")
+# Display the disparity map
+cv2.imshow('Disparity Map', left_image)
+cv2.imshow('Right', right_image)
+cv2.imshow('Disparity', disparity_map)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
