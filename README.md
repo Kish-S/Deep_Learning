@@ -67,7 +67,8 @@ In the disparity image, black patches can be found, indicating overlapping regio
 ![alt text][image2]
 
 
-All inputs can be found in Images/ folder
+All inputs can be found in Images/ folder.
+
 All outputs can be found in output/ folder.
 
 
