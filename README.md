@@ -9,6 +9,7 @@ python3 distance_detection.py
 
 ### To run distance detection on single image
 python3 single_image.py
+
 NOTE: change image path in code
 
 ## Project Description
