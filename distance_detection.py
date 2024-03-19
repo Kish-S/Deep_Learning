@@ -13,10 +13,6 @@ def calculate_distance(bbox, focal_length, baseline, disparity_map, left_boxes):
     # Extract bounding box coordinates
     x_min, y_min, x_max, y_max, _, _ = map(int, bbox)
 
-    # Calculate the center of the bounding box
-    x_center = int((x_min + x_max) / 2)
-    y_center = int((y_min + y_max) / 2)
-
     # Create a mask to exclude overlapping regions for the current bounding box
     for box in left_boxes:
          if not np.array_equal(box, bbox):
@@ -46,8 +42,6 @@ def calculate_distance(bbox, focal_length, baseline, disparity_map, left_boxes):
     return distance
 
 
-
-
 def calculate_disparity_map(img_left, img_right):
     # Convert images to grayscale
     img_left_gray = cv2.cvtColor(img_left, cv2.COLOR_BGR2GRAY)
@@ -69,7 +63,6 @@ baseline = 0.5446
 
 # Model
 model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)
-
 
 
 # Output folder
@@ -100,20 +93,20 @@ for i, (left_image_name, right_image_name) in enumerate(zip(os.listdir('./Images
     for box in left_boxes:
         x_min, y_min, x_max, y_max, _, category = map(int, box)
         probability = box[4]
-        if (category == 2 or category == 5 or category == 7) and probability >= 0.6:
+        if (category == 2 or category == 5 or category == 7) and probability >= 0.55:
+            if x_min > 50 and x_max > 50:
+                cv2.rectangle(left_image, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+                x_center = int((x_min + x_max) / 2)
+                y_center = int((y_min + y_max) / 2)
+                cv2.circle(left_image, (x_center, y_center), 5, (255, 0, 0), -1)
 
-            cv2.rectangle(left_image, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
-            x_center = int((x_min + x_max) / 2)
-            y_center = int((y_min + y_max) / 2)
-            cv2.circle(left_image, (x_center, y_center), 5, (255, 0, 0), -1)
-
-            # Calculate distance
-            dist = calculate_distance(box, focal_length, baseline, disparity_map, left_boxes)
-            if dist is not None:
-                cv2.putText(left_image, f"{dist:.2f}m", (x_center - 50, y_center - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1, cv2.LINE_AA)
-            # After calculating distance, add this line to check proximity and display warning if necessary
-            check_proximity_warning(dist, left_image)
-
+                # Calculate distance
+                dist = calculate_distance(box, focal_length, baseline, disparity_map, left_boxes)
+                if dist is not None:
+                    cv2.putText(left_image, f"{dist:.2f}m", (x_center - 50, y_center - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1, cv2.LINE_AA)
+                # After calculating distance, add this line to check proximity and display warning if necessary
+                check_proximity_warning(dist, left_image)
+            
     # Save the annotated image to the output folder
     output_image_path = os.path.join(output_folder, f'result_{i}.png')
     cv2.imwrite(output_image_path, left_image)

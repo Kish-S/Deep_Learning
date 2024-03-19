@@ -70,8 +70,8 @@ baseline = 0.5446
 model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)
 
 # Load left and right images
-left_image_path = './Images/image_L/2018-10-11-16-03-19_2018-10-11-16-05-28-455.png'
-right_image_path = './Images/image_R/2018-10-11-16-03-19_2018-10-11-16-05-28-455.png'
+left_image_path = './Images/image_L/2018-07-11-14-48-52_2018-07-11-15-10-16-277.png'
+right_image_path = './Images/image_R/2018-07-11-14-48-52_2018-07-11-15-10-16-277.png'
 
 left_image = cv2.imread(left_image_path)
 right_image = cv2.imread(right_image_path)
@@ -89,8 +89,7 @@ disparity_map = calculate_disparity_map(left_image, right_image)
 for box in left_boxes:
     x_min, y_min, x_max, y_max, _, category = map(int, box)
     probability = box[4]
-    if (category == 2 or category == 5 or category == 7) and probability >= 0.5:
-
+    if (category == 2 or category == 5 or category == 7) and probability >= 0.55:
         cv2.rectangle(left_image, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
         x_center = int((x_min + x_max) / 2)
         y_center = int((y_min + y_max) / 2)
